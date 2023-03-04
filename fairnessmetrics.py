@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import confusion_matrix
 
 df = pd.read_csv('data/catalan-juvenile-recidivism-subset.csv')
 print(f"Attributes {df.columns}")
@@ -7,7 +8,7 @@ print(f"Attributes {df.columns}")
 
 df_dummy = df.loc[:10]
 df_dummy.loc[0:3, 'V115_RECID2015_recid'] = 0 # alter values to have different recidivism
-fake_preds = [1, 1, 0, 0, 1, 1, 1, 0, 1, 0]
+fake_preds = [1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1]
 group = 'V4_area_origin'
 
 print(df_dummy['V4_area_origin'].unique())
@@ -28,18 +29,96 @@ def assessIndependence(df, preds, group='V4_area_origin'):
 
     return out
 
-out = assessIndependence(df_dummy, fake_preds)
+out1 = assessIndependence(df_dummy, fake_preds)
 
 
-def assessSeperation(x, y, z):
-    pass
+def assessSeperation(df, preds, group = 'V4_area_origin'):
+    groups = df[group].unique()
 
-def assessSufficiency(x, y, z):
-    pass
+    y_pred = {e: [] for e in groups}
+    y_true = {e: [] for e in groups}
+
+    for idx, pred in enumerate(preds):
+        #lists of predictions and true values across groups
+        y_pred[df.loc[idx][group]].append(pred)
+        y_true[df.loc[idx][group]].append(df.loc[idx]['V115_RECID2015_recid'])
+
+    out = {e: (0,0) for e in groups}
+
+    for group in groups:
+        #calculating the true positive rate and false positive rate across groups
+        tn, fp, fn, tp = confusion_matrix(y_true[group], y_pred[group]).ravel()
+        tpr = tp / (tp + fn)
+        fpr = fp / (fp + tn)
+        out[group] = (tpr, fpr)
+
+    return out
+
+out2 = assessSeperation(df_dummy, fake_preds)
+
+def assessSufficiency(df, preds, group = 'V4_area_origin'):
+    groups = df[group].unique()
+
+    # diving into groups and into the different predictors r = 1 and r = 0
+    r_1 = {e: [0, 0] for e in groups}
+    r_0 = {e: [0, 0] for e in groups}
+
+    for idx, pred in enumerate(preds):
+        if pred == 1:
+            # getting number of predictions for r=1
+            r_1[df.loc[idx][group]][0] += 1
+            if df.loc[idx]['V115_RECID2015_recid'] == 1:
+                # Getting number of true values for y=1, given the model predicts r=1
+                r_1[df.loc[idx][group]][1] += 1
+        else:
+            # getting number of predictions for r=0
+            r_0[df.loc[idx][group]][0] += 1
+            if df.loc[idx]['V115_RECID2015_recid'] == 1:
+                # Getting number of true values for y=1, given the model predicts r=0
+                r_0[df.loc[idx][group]][1] += 1
+
+    out = {e: (0, 0) for e in groups}
+
+    # Getting the sufficiency rate for predictors r=0 and r=1 for each group
+    for group in groups:
+        try:
+            y1r1 = r_1[group][1] / r_1[group][0]
+        except ZeroDivisionError:
+            y1r1 = 0
+
+        try:
+            y1r0 = r_0[group][1] / r_0[group][0]
+        except ZeroDivisionError:
+            y1r0 = 0
+
+        out[group] = (y1r1, y1r0)
+
+    return out
+
+out3 = assessSufficiency(df_dummy, fake_preds)
 
 
+def printTests():
+    out1 = assessIndependence(df_dummy, fake_preds)
+    out2 = assessSeperation(df_dummy, fake_preds)
+    out3 = assessSufficiency(df_dummy, fake_preds)
+
+    print("\n Independency test")
+    for group in out1:
+        print("P( y=1 |", group, ") :", out1[group])
+
+    print("\n Separation test")
+    for group in out2:
+        print("P( y_hat=1 | y=1 ,", group, ") (TPR):", out2[group][0])
+        print("P( y_hat=1 | y=0 ,", group, ") (FPR):", out2[group][1])
+
+    print("\n Sufficiency test")
+    for group in out3:
+        print("P( y=1 | r=1 ,", group, ") :", out3[group][0])
+        print("P( y=1 | r=0 ,", group, ") :", out3[group][1])
 
 
+printTests()
     
 
 

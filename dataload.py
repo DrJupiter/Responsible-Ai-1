@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import os
 import json
+from torch.utils.data import Dataset, DataLoader, random_split
+from torch import Generator
+import numpy as np
 
 def preprocess(path='data/catalan-juvenile-recidivism-subset.csv', save_path='data/') -> None: 
     """
@@ -33,15 +36,48 @@ def encode(data_frame):
     map_dict = {item: i for i, item in enumerate(unique)}
     return data_frame.map(map_dict), map_dict
 
-def datasplit(path='data/preprocessed.csv'):
+def datasplit(dataset, split=[0.3,0.3,0.4], r_idx=2, seed=42):
     """
     Splits the data into train, validation and test
     """
-    pass
+    train_size = int(len(dataset)*split[0])
+    validation_size = int(len(dataset) * split[1])
+    test_size = int(len(dataset) * split[2])
+    sizes = [train_size, validation_size, test_size]
+    r = len(dataset)-sum(sizes)
+    sizes[r_idx] += r
+    return random_split(dataset, sizes, Generator().manual_seed(seed))
+
+def convert_dataload(array: Dataset, batchsizes=[24,1,1], shuffle=[True, False, False]):
+    assert len(array) == len(batchsizes),"Number of datasets must match batchsize setting length" 
+    assert len(array) == len(shuffle), "Number of datasets must match shuffle setting length"
+    return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+
+class CatalanDataset(Dataset):
+
+    def __init__(self, path, person_sensitive=False) -> None:
+        super().__init__()
+        self.data_table = pd.read_csv(path)
+        self.data_table = self.data_table[self.data_table.columns[1:]]
+        if not person_sensitive:
+            self.data_table = self.data_table[self.data_table.columns[5:]]
+        self.feature = self.data_table.loc[:, self.data_table.columns != 'V115_RECID2015_recid'].values.astype(np.float32)
+        self.target = self.data_table.loc[:, self.data_table.columns == 'V115_RECID2015_recid'].values.astype(np.float32)
     
+    def __getitem__(self, index):
+        return self.feature[index],self.target[index]
+    
+    def __len__(self):
+        return len(self.target)
+
+        
+
+        
 
 
 if __name__ == "__main__":
     data_table = pd.read_csv('data/catalan-juvenile-recidivism-subset.csv')
     preprocess()
+    dataset = CatalanDataset('./data/preprocessed.csv')
+    train, validation, test = datasplit(dataset)
     print('succes')

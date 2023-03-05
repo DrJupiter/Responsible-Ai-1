@@ -1,26 +1,59 @@
-#%%
-import pandas as pd
+from model import Net_Logistic
+import torch
+from dataload import CatalanDataset, datasplit, convert_dataload 
 import numpy as np
-#%%
-df = pd.read_csv("data\catalan-juvenile-recidivism-subset.csv")
+import random
 
-dummy_df = df.loc[:10]
+# Reducability
+seed = 42
+torch.manual_seed(seed)
+random.seed(seed)
+np.random.seed(seed)
 
-# %%
-dummy_df.loc[1:3,"V115_RECID2015_recid"] = 0
+# Constants
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+LEARNING_RATE = 1e-4
+EPOCHS = 700
 
-# %%
+# Initialize data
+dataset = CatalanDataset('./data/preprocessed.csv')
+train, validation, test = convert_dataload(datasplit(dataset))
+_x, _y = next(iter(train))
 
-dummy_df["predictions"] = [0,1,0,1,0,1,0,1,0,1,0]
+# Initialize model
+model = Net_Logistic(_x.size()[1]) 
+model= torch.nn.DataParallel(model)
+model.to(DEVICE)
+model.train()
 
-dummy_df.loc[:,["V4_area_origin","V115_RECID2015_recid","predictions"]]
+# Optimizer and Loss
+optimizer = torch.optim.Adam(model.parameters(),lr=LEARNING_RATE)
+loss_fn = torch.nn.BCELoss()
+
+# Train
+losses = []
+accur = []
+
+for i in range(EPOCHS):
+  for j,(feature,target) in enumerate(train):
+    feature, target = feature.to(DEVICE), target.to(DEVICE)
+    #calculate output
+    output = model(feature)
+ 
+    #calculate loss
+    loss = loss_fn(output,target.reshape(-1,1))
+ 
+    #accuracy
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
 
-# %%
-s_df = dummy_df.loc[dummy_df['V4_area_origin'] == "Spain"]
-m_df = dummy_df.loc[dummy_df['V4_area_origin'] == "Maghreb"]
-# %%
+model.eval()
+val_loss = []
+for feature, target in validation:
+    feature, target = feature.to(DEVICE), target.to(DEVICE)
 
-s_acc = np.mean((s_df["V115_RECID2015_recid"]-s_df["predictions"])**2)
-m_acc = np.mean((m_df["V115_RECID2015_recid"]-m_df["predictions"])**2)
-s_acc, m_acc
+    val_loss.append((model(feature).round() == target).reshape(-1).detach().cpu().numpy())
+
+print(np.mean(val_loss))

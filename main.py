@@ -13,7 +13,7 @@ np.random.seed(seed)
 # Constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 LEARNING_RATE = 1e-4
-EPOCHS = 700
+EPOCHS = 850
 
 # Initialize data
 dataset = CatalanDataset('./data/preprocessed.csv')

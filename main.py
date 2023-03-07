@@ -50,6 +50,7 @@ def main():
      val_loss, val_acc = validate(model, DataloaderVal, criterion, CFG)
      val_losses.append(val_loss)
      val_accs.append(val_acc)
+     
 
 def train(model, dataloader, optimizer, criterion, CFG):
   model.train()

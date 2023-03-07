@@ -95,13 +95,3 @@ def validate(model, dataloader, criterion, CFG):
         print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses)}")
 
   return losses, accs
-
-
-
-val_loss = []
-for feature, target in validation:
-    feature, target = feature.to(DEVICE), target.to(DEVICE)
-
-    val_loss.append((model(feature).round() == target).reshape(-1).detach().cpu().numpy())
-
-print(np.mean(val_loss))

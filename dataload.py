@@ -5,6 +5,7 @@ import json
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch import Generator
 import numpy as np
+from typing import List
 
 def preprocess(path='data/catalan-juvenile-recidivism-subset.csv', save_path='data/') -> None: 
     """
@@ -40,6 +41,7 @@ def datasplit(dataset, split=[0.3,0.3,0.4], r_idx=2, seed=42):
     """
     Splits the data into train, validation and test
     """
+
     train_size = int(len(dataset)*split[0])
     validation_size = int(len(dataset) * split[1])
     test_size = int(len(dataset) * split[2])
@@ -48,19 +50,36 @@ def datasplit(dataset, split=[0.3,0.3,0.4], r_idx=2, seed=42):
     sizes[r_idx] += r
     return random_split(dataset, sizes, Generator().manual_seed(seed))
 
-def convert_dataload(array: Dataset, batchsizes=[24,1,1], shuffle=[True, False, False]):
+def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, False, False], regularized_training=False):
     assert len(array) == len(batchsizes),"Number of datasets must match batchsize setting length" 
     assert len(array) == len(shuffle), "Number of datasets must match shuffle setting length"
-    return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+    if not regularized_training:
+        return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+    
+    else:
+        # TODO fix shitty path bug, refactor dataload script with "split" column in df?
+        train_df = array[0].dataset.data_table.copy()
+        train_male = CatalanDataset(train_df.loc[train_df['V1_sex'] == 0], person_sensitive=True)
+        train_female = CatalanDataset(train_df.loc[train_df['V1_sex'] == 1], person_sensitive=True)
+        
+        # split train into male and female...
+        #train_male = CatalanDataset(array[0].dataset.data_table.loc[array[0].dataset.data_table['V1_sex'] == 0], person_sensitive=True)
+        #train_female = CatalanDataset(array[0].dataset.data_table.loc[array[0].dataset.data_table['V1_sex'] == 1], person_sensitive=True)
+        
+        batchsizes = [batchsizes[0], batchsizes[0]] + batchsizes[1:]
+        shuffle = [shuffle[0], shuffle[0]] + shuffle[1:]
+        return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+
 
 class CatalanDataset(Dataset):
 
-    def __init__(self, path, person_sensitive=False) -> None:
+    def __init__(self, path, person_sensitive=False, regularized_training=False) -> None:
         super().__init__()
         self.data_table = pd.read_csv(path)
         self.data_table = self.data_table[self.data_table.columns[1:]]
         if not person_sensitive:
             self.data_table = self.data_table[self.data_table.columns[5:]]
+    
         self.feature = self.data_table.loc[:, self.data_table.columns != 'V115_RECID2015_recid'].values.astype(np.float32)
         self.target = self.data_table.loc[:, self.data_table.columns == 'V115_RECID2015_recid'].values.astype(np.float32)
     

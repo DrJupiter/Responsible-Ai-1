@@ -2,6 +2,7 @@ from model import Net_Logistic
 import torch
 from dataload import CatalanDataset, datasplit, convert_dataload 
 import numpy as np
+import pandas as pd
 import random
 import time 
 
@@ -25,7 +26,7 @@ def main():
   CFG = cfg()  
 
   ### Load data, split and initialize dataloaders ###
-  dataset = CatalanDataset(CFG.data_path)
+  dataset = CatalanDataset(pd.read_csv(CFG.data_path))
   DataloaderTrain, DataloaderVal, DataloaderTest = convert_dataload(datasplit(dataset))
   _x, _y = next(iter(DataloaderTrain))
 

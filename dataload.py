@@ -68,15 +68,16 @@ def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, F
         
         batchsizes = [batchsizes[0], batchsizes[0]] + batchsizes[1:]
         shuffle = [shuffle[0], shuffle[0]] + shuffle[1:]
+        array = [train_male, train_female] + [array[1], array[2]]
         return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
 
 
 class CatalanDataset(Dataset):
 
-    def __init__(self, path, person_sensitive=False, regularized_training=False) -> None:
+    def __init__(self, data_table, person_sensitive=False, regularized_training=False) -> None:
         super().__init__()
-        self.data_table = pd.read_csv(path)
-        self.data_table = self.data_table[self.data_table.columns[1:]]
+        
+        self.data_table = data_table[data_table.columns[1:]]
         if not person_sensitive:
             self.data_table = self.data_table[self.data_table.columns[5:]]
     
@@ -97,6 +98,7 @@ class CatalanDataset(Dataset):
 if __name__ == "__main__":
     data_table = pd.read_csv('data/catalan-juvenile-recidivism-subset.csv')
     preprocess()
-    dataset = CatalanDataset('./data/preprocessed.csv')
+    processed_data = pd.read_csv('./data/preprocessed.csv')
+    dataset = CatalanDataset(processed_data)
     train, validation, test = datasplit(dataset)
     print('succes')

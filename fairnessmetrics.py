@@ -2,16 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 
-df = pd.read_csv('data/catalan-juvenile-recidivism-subset.csv')
-print(f"Attributes {df.columns}")
 
-
-df_dummy = df.loc[:10]
-df_dummy.loc[0:3, 'V115_RECID2015_recid'] = 0 # alter values to have different recidivism
-fake_preds = [1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1]
-group = 'V4_area_origin'
-
-print(df_dummy['V4_area_origin'].unique())
 
 def assessIndependence(df, preds, group='V4_area_origin'):
     # unique values
@@ -28,8 +19,6 @@ def assessIndependence(df, preds, group='V4_area_origin'):
         out[g] = out[g]/len(preds)
 
     return out
-
-out1 = assessIndependence(df_dummy, fake_preds)
 
 
 def assessSeperation(df, preds, group = 'V4_area_origin'):
@@ -53,8 +42,6 @@ def assessSeperation(df, preds, group = 'V4_area_origin'):
         out[group] = (tpr, fpr)
 
     return out
-
-out2 = assessSeperation(df_dummy, fake_preds)
 
 def assessSufficiency(df, preds, group = 'V4_area_origin'):
     groups = df[group].unique()
@@ -95,13 +82,11 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
 
     return out
 
-out3 = assessSufficiency(df_dummy, fake_preds)
 
-
-def printTests():
-    out1 = assessIndependence(df_dummy, fake_preds)
-    out2 = assessSeperation(df_dummy, fake_preds)
-    out3 = assessSufficiency(df_dummy, fake_preds)
+def printTests(dataframe, predictions):
+    out1 = assessIndependence(dataframe, predictions)
+    out2 = assessSeperation(dataframe, predictions)
+    out3 = assessSufficiency(dataframe, predictions)
 
     print("\n Independency test")
     for group in out1:
@@ -118,7 +103,18 @@ def printTests():
         print("P( y=1 | r=0 ,", group, ") :", out3[group][1])
 
 
-printTests()
     
 
 
+if __name__ == "__main__":
+    df = pd.read_csv('data/catalan-juvenile-recidivism-subset.csv')
+    print(f"Attributes {df.columns}")
+
+
+    df_dummy = df.loc[:10]
+    df_dummy.loc[0:3, 'V115_RECID2015_recid'] = 0 # alter values to have different recidivism
+    fake_preds = [1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1]
+    group = 'V4_area_origin'
+
+    print(df_dummy['V4_area_origin'].unique())
+    printTests(df_dummy, fake_preds)

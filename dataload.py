@@ -74,12 +74,6 @@ def group_split(dataset, encoding_table, group):
     
     return group_splits
 
-
-
-
-
-    #list(iter(array[0]))
-
 def get_encoding_table(path='./data/encoding.json'):
     with open(path,'r') as f:
         encoding_table = json.load(f)
@@ -87,26 +81,11 @@ def get_encoding_table(path='./data/encoding.json'):
     return encoding_table
 
 
-def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, False, False], regularized_training=False):
+def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, False, False]):
     assert len(array) == len(batchsizes),"Number of datasets must match batchsize setting length" 
     assert len(array) == len(shuffle), "Number of datasets must match shuffle setting length"
-    if not regularized_training:
-        return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
-    
-    else:
-        # TODO fix shitty path bug, refactor dataload script with "split" column in df?
-        train_df = pd.DataFrame()
-        train_male = CatalanDataset(train_df.loc[train_df['V1_sex'] == 0], person_sensitive=True)
-        train_female = CatalanDataset(train_df.loc[train_df['V1_sex'] == 1], person_sensitive=True)
-        
-        # split train into male and female...
-        #train_male = CatalanDataset(array[0].dataset.data_table.loc[array[0].dataset.data_table['V1_sex'] == 0], person_sensitive=True)
-        #train_female = CatalanDataset(array[0].dataset.data_table.loc[array[0].dataset.data_table['V1_sex'] == 1], person_sensitive=True)
-        
-        batchsizes = [batchsizes[0], batchsizes[0]] + batchsizes[1:]
-        shuffle = [shuffle[0], shuffle[0]] + shuffle[1:]
-        array = [train_male, train_female] + [array[1], array[2]]
-        return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+    return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
+  
 
 class CatalanDatasetGroup(Dataset):
 

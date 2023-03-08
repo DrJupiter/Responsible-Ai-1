@@ -50,6 +50,43 @@ def datasplit(dataset, split=[0.3,0.3,0.4], r_idx=2, seed=42):
     sizes[r_idx] += r
     return random_split(dataset, sizes, Generator().manual_seed(seed))
 
+def group_split(dataset, encoding_table, group):
+
+    idx = None
+    group_encoding = None 
+    for i, key in enumerate(encoding_table.keys()):
+        if group == key:
+            idx = i
+            group_encoding = {value: key for key, value in encoding[group].items()}
+
+            break
+    if idx is None:
+        raise ValueError("Unable to find group")
+
+    # Expected form (N, (feature,target))    
+    realized_dataset = np.array(list(iter(dataset)),dtype=np.object)
+    merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    unique = np.unique(merged[:,idx])
+
+    group_splits = [] 
+    for u in unique:
+        group_splits.append(CatalanDatasetGroup(merged[np.where(merged[:,idx] == u)], group, group_encoding[u]))
+    
+    return group_splits
+
+
+
+
+
+    #list(iter(array[0]))
+
+def get_encoding_table(path='./data/encoding.json'):
+    with open(path,'r') as f:
+        encoding_table = json.load(f)
+        f.close()
+    return encoding_table
+
+
 def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, False, False], regularized_training=False):
     assert len(array) == len(batchsizes),"Number of datasets must match batchsize setting length" 
     assert len(array) == len(shuffle), "Number of datasets must match shuffle setting length"
@@ -58,7 +95,7 @@ def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, F
     
     else:
         # TODO fix shitty path bug, refactor dataload script with "split" column in df?
-        train_df = pd.DataFrame(iter(array[0]))
+        train_df = pd.DataFrame()
         train_male = CatalanDataset(train_df.loc[train_df['V1_sex'] == 0], person_sensitive=True)
         train_female = CatalanDataset(train_df.loc[train_df['V1_sex'] == 1], person_sensitive=True)
         
@@ -71,6 +108,19 @@ def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, F
         array = [train_male, train_female] + [array[1], array[2]]
         return [DataLoader(dataset,batch_size=batchsize, shuffle=s) for (dataset, batchsize, s) in zip(array, batchsizes, shuffle)]
 
+class CatalanDatasetGroup(Dataset):
+
+    def __init__(self, numpy_array, group, subgroup) -> None:
+        super().__init__()
+        self.dataset = numpy_array
+        self.group = group
+        self.subgroup = subgroup
+
+    def __getitem__(self, index):
+        return self.dataset[index,:-1],self.dataset[index,-1]
+    
+    def __len__(self):
+        return len(self.dataset)
 
 class CatalanDataset(Dataset):
 
@@ -101,4 +151,6 @@ if __name__ == "__main__":
     processed_data = pd.read_csv('./data/preprocessed.csv')
     dataset = CatalanDataset(processed_data)
     train, validation, test = datasplit(dataset)
+    encoding = get_encoding_table()
+    groups = group_split(train, encoding, 'V1_sex')
     print('succes')

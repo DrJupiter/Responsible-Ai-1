@@ -31,6 +31,9 @@ def main():
   DataloaderTrain, DataloaderTrainG1, DataloaderTrainG2, DataloaderVal, DataloaderTest = convert_dataload(datasplit(dataset))
   _x, _y = next(iter(DataloaderTrain))
 
+
+  # TODO: Specify which groups you are splitting over and create a corresponding number of models and then loop over them
+
   ### Initialize model, optimizer and loss ###
   joint_model = Net_Logistic(_x.size()[1])
   feature_model = FeatureModel(_x.size()[1])

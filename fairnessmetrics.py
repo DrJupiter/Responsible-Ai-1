@@ -82,7 +82,7 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
 
     return out
 
-
+# TODO: Save tests to a file
 def test_fairness(dataframe, predictions, log=True, print=True):
     out1 = assessIndependence(dataframe, predictions)
     out2 = assessSeperation(dataframe, predictions)

@@ -119,7 +119,7 @@ class CatalanDataset(Dataset):
     def __len__(self):
         return len(self.target)
 
-        
+# TODO: FUNCTION FOR CONVERTING DATALOADER BACK TO PD DATAFRAME WITH ORIGINAL COLUMNS FOR FAIRNESS METRIC FUNCTIONS        
 
         
 

@@ -1,6 +1,7 @@
 from model import Net_Logistic
 import torch
 from dataload import CatalanDataset, datasplit, convert_dataload 
+from fairnessmetrics import printTests
 import numpy as np
 import pandas as pd
 import random
@@ -51,6 +52,7 @@ def main():
      val_loss, val_acc = validate(model, DataloaderVal, criterion, CFG)
      val_losses.append(val_loss)
      val_accs.append(val_acc)
+  
      
 
 def train(model, dataloader, optimizer, criterion, CFG):

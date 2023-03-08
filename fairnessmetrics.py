@@ -89,16 +89,16 @@ def printTests(dataframe, predictions):
     out3 = assessSufficiency(dataframe, predictions)
 
     print("\n Independency test")
-    for group in out1:
+    for group in out1.keys():
         print("P( y=1 |", group, ") :", out1[group])
 
     print("\n Separation test")
-    for group in out2:
+    for group in out2.keys():
         print("P( y_hat=1 | y=1 ,", group, ") (TPR):", out2[group][0])
         print("P( y_hat=1 | y=0 ,", group, ") (FPR):", out2[group][1])
 
     print("\n Sufficiency test")
-    for group in out3:
+    for group in out3.keys():
         print("P( y=1 | r=1 ,", group, ") :", out3[group][0])
         print("P( y=1 | r=0 ,", group, ") :", out3[group][1])
 

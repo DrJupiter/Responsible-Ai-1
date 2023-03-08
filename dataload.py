@@ -118,10 +118,17 @@ class CatalanDataset(Dataset):
     
     def __len__(self):
         return len(self.target)
+    
 
 # TODO: FUNCTION FOR CONVERTING DATALOADER BACK TO PD DATAFRAME WITH ORIGINAL COLUMNS FOR FAIRNESS METRIC FUNCTIONS        
-
-        
+def dataloader_to_dataframe(dataloader, columns):
+    """
+    Requires columns to be in the correct order
+    (In our case putting the target variable(s) last)
+    """
+    realized_dataset = np.array(list(iter(dataloader)),dtype=np.object)
+    merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    return pd.DataFrame(merged, columns=columns)
 
 
 if __name__ == "__main__":

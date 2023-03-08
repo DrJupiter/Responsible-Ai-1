@@ -58,7 +58,7 @@ def convert_dataload(array: List[Dataset], batchsizes=[24,1,1], shuffle=[True, F
     
     else:
         # TODO fix shitty path bug, refactor dataload script with "split" column in df?
-        train_df = array[0].dataset.data_table.copy()
+        train_df = pd.DataFrame(iter(array[0]))
         train_male = CatalanDataset(train_df.loc[train_df['V1_sex'] == 0], person_sensitive=True)
         train_female = CatalanDataset(train_df.loc[train_df['V1_sex'] == 1], person_sensitive=True)
         

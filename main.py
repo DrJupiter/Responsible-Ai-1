@@ -1,7 +1,7 @@
 from model import Net_Logistic
 import torch
 from dataload import CatalanDataset, datasplit, convert_dataload 
-from fairnessmetrics import printTests
+from fairnessmetrics import test_fairness
 import numpy as np
 import pandas as pd
 import random

@@ -83,7 +83,7 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
     return out
 
 
-def printTests(dataframe, predictions):
+def test_fairness(dataframe, predictions, log=True, print=True):
     out1 = assessIndependence(dataframe, predictions)
     out2 = assessSeperation(dataframe, predictions)
     out3 = assessSufficiency(dataframe, predictions)
@@ -117,4 +117,4 @@ if __name__ == "__main__":
     group = 'V4_area_origin'
 
     print(df_dummy['V4_area_origin'].unique())
-    printTests(df_dummy, fake_preds)
+    test_fairness(df_dummy, fake_preds)

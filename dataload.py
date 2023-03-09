@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch import Generator
 import numpy as np
 from typing import List
+import torch
 
 def preprocess(path='data/catalan-juvenile-recidivism-subset.csv', save_path='data/') -> None: 
     """
@@ -126,8 +127,11 @@ def dataloader_to_dataframe(dataloader, columns):
     Requires columns to be in the correct order
     (In our case putting the target variable(s) last)
     """
-    realized_dataset = np.array(list(iter(dataloader)),dtype=np.object)
-    merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    # realized_dataset = np.array(list(iter(dataloader)),dtype=np.object)
+    # merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    # return pd.DataFrame(merged, columns=columns)
+    realized_dataset = list(iter(dataloader))
+    merged = np.array([np.array(torch.hstack((x[0],y[0]))) for x,y in realized_dataset])
     return pd.DataFrame(merged, columns=columns)
 
 

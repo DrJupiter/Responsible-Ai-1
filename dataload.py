@@ -64,7 +64,7 @@ def group_split(dataset, encoding_table, group):
         raise ValueError("Unable to find group")
 
     # Expected form (N, (feature,target))    
-    realized_dataset = np.array(list(iter(dataset)),dtype=np.object)
+    realized_dataset = np.array(list(iter(dataset)),dtype=np.object_)
     merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
     unique = np.unique(merged[:,idx])
 
@@ -112,6 +112,7 @@ class CatalanDataset(Dataset):
     
         self.feature = self.data_table.loc[:, self.data_table.columns != 'V115_RECID2015_recid'].values.astype(np.float32)
         self.target = self.data_table.loc[:, self.data_table.columns == 'V115_RECID2015_recid'].values.astype(np.float32)
+        self.columns = list(self.data_table.columns[self.data_table.columns != 'V115_RECID2015_recid']) + ['V115_RECID2015_recid']
     
     def __getitem__(self, index):
         return self.feature[index],self.target[index]
@@ -126,7 +127,7 @@ def dataloader_to_dataframe(dataloader, columns):
     Requires columns to be in the correct order
     (In our case putting the target variable(s) last)
     """
-    realized_dataset = np.array(list(iter(dataloader)),dtype=np.object)
+    realized_dataset = np.array(list(iter(dataloader)),dtype=np.object_)
     merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
     return pd.DataFrame(merged, columns=columns)
 
@@ -139,4 +140,5 @@ if __name__ == "__main__":
     train, validation, test = datasplit(dataset)
     encoding = get_encoding_table()
     groups = group_split(train, encoding, 'V1_sex')
+    dataloader_to_dataframe(test, test.dataset.columns).info()
     print('succes')

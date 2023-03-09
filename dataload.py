@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch import Generator
 import numpy as np
 from typing import List
+import torch
 
 def preprocess(path='data/catalan-juvenile-recidivism-subset.csv', save_path='data/') -> None: 
     """

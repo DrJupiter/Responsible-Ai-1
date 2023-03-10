@@ -14,8 +14,6 @@ torch.manual_seed(seed)
 random.seed(seed)
 np.random.seed(seed)
 
-
-
 class cfg:
    def __init__(self):
       self.data_path = './data/preprocessed.csv'

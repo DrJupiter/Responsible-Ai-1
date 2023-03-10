@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
+import json
 
-
+# TODO: LOAD ENCODING TABLET AND CONVERT GROUPS TO THEIR
+# SEMANTIC MEANING FROM THEIR NUMERIC ONES
 
 def assessIndependence(df, preds, group='V4_area_origin'):
     # unique values
@@ -16,7 +18,7 @@ def assessIndependence(df, preds, group='V4_area_origin'):
             out[df.loc[idx][group]] += 1
     
     for g in groups:
-        out[g] = out[g]/len(preds)
+        out[g] = float(out[g]/len(preds))
 
     return out
 
@@ -39,7 +41,7 @@ def assessSeperation(df, preds, group = 'V4_area_origin'):
         tn, fp, fn, tp = confusion_matrix(y_true[group], y_pred[group]).ravel()
         tpr = tp / (tp + fn)
         fpr = fp / (fp + tn)
-        out[group] = (tpr, fpr)
+        out[group] = (float(tpr), float(fpr))
 
     return out
 
@@ -78,29 +80,41 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
         except ZeroDivisionError:
             y1r0 = 0
 
-        out[group] = (y1r1, y1r0)
+        out[group] = (float(y1r1), float(y1r0))
 
     return out
 
 # TODO: Save tests to a file
-def test_fairness(dataframe, predictions, log=True, print=True):
+def test_fairness(dataframe, predictions, log=True, print=True, path='./results'):
+
     out1 = assessIndependence(dataframe, predictions)
     out2 = assessSeperation(dataframe, predictions)
     out3 = assessSufficiency(dataframe, predictions)
+    metric_results = [out1, out2, out3]
+    metrics = ['independence', 'seperation', 'sufficiency']
+    
+    results = {m: m_res for (m, m_res) in zip(metrics, metric_results)}
+    # FIX: DOING THE TODO AT THE TOP OF THE FILE 
+    if log:
+        save_path = f"{path}/fairness.json" 
+        with open(save_path, 'w') as f:
+            json.dump(results, f)
+            f.close()
 
-    print("\n Independency test")
-    for group in out1.keys():
-        print("P( y=1 |", group, ") :", out1[group])
+    if print:
+        print("\n Independency test")
+        for group in out1.keys():
+            print("P( y=1 |", group, ") :", out1[group])
 
-    print("\n Separation test")
-    for group in out2.keys():
-        print("P( y_hat=1 | y=1 ,", group, ") (TPR):", out2[group][0])
-        print("P( y_hat=1 | y=0 ,", group, ") (FPR):", out2[group][1])
+        print("\n Separation test")
+        for group in out2.keys():
+            print("P( y_hat=1 | y=1 ,", group, ") (TPR):", out2[group][0])
+            print("P( y_hat=1 | y=0 ,", group, ") (FPR):", out2[group][1])
 
-    print("\n Sufficiency test")
-    for group in out3.keys():
-        print("P( y=1 | r=1 ,", group, ") :", out3[group][0])
-        print("P( y=1 | r=0 ,", group, ") :", out3[group][1])
+        print("\n Sufficiency test")
+        for group in out3.keys():
+            print("P( y=1 | r=1 ,", group, ") :", out3[group][0])
+            print("P( y=1 | r=0 ,", group, ") :", out3[group][1])
 
 
     

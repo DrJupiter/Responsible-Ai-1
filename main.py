@@ -31,7 +31,7 @@ def main():
 
   ### Load data, split and initialize dataloaders ###
   pd_df = pd.read_csv(CFG.data_path)
-  dataset = CatalanDataset(pd_df)
+  dataset = CatalanDataset(pd_df, person_sensitive=True)
   DataloaderTrain, DataloaderVal, DataloaderTest = convert_dataload(datasplit(dataset))
   _x, _y = next(iter(DataloaderTrain))
 
@@ -45,7 +45,7 @@ def main():
   criterion = torch.nn.BCELoss().to(CFG.device)
 
   train_losses, val_losses, train_accs, val_accs = [], [], [], []
-
+  fairness(model, DataloaderTest, CFG)
   ### Start training loop ###
   for i in range(CFG.start_epoch, CFG.n_epochs):
     print("epoch:",i)
@@ -72,8 +72,6 @@ def main():
   test_pd_df = dataloader_to_dataframe(DataloaderTest, cols)
 
   # get predictions
-
-
   test_fairness(test_pd_df, predictions, log=True, print=True)
 
   return train_losses, val_losses, train_accs, val_accs, test_losses, test_acc
@@ -121,9 +119,24 @@ def validate(model, dataloader, criterion, CFG):
       predictions.append(out)
       end = time.time()
       if i % CFG.print_freq == 0:
-        print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses)}")
+        print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses):.4f}")
 
   return losses, accs, predictions
 
+def fairness(model, dataloader, CFG):
+  model.eval()
+  predictions = []
+  
+  with torch.no_grad():
+    for i, (ipt, trg) in enumerate(dataloader):
+      ipt = ipt.to(CFG.device)
+      trg = trg.to(CFG.device)
+      
+      #np.where(model(ipt).detach().cpu().numpy() <= 0.5, 1, 0)
+      predictions.append((model(ipt).round()).reshape(-1).detach().cpu().numpy())
+   
+  df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
+
+  test_fairness(df, predictions)
 if __name__ == "__main__":
   main()

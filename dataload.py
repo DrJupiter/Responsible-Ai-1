@@ -122,14 +122,16 @@ class CatalanDataset(Dataset):
         return len(self.target)
     
 
-# TODO: FUNCTION FOR CONVERTING DATALOADER BACK TO PD DATAFRAME WITH ORIGINAL COLUMNS FOR FAIRNESS METRIC FUNCTIONS        
 def dataloader_to_dataframe(dataloader, columns):
     """
     Requires columns to be in the correct order
     (In our case putting the target variable(s) last)
     """
     realized_dataset = np.array(list(iter(dataloader)),dtype=np.object_)
-    merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    if type(realized_dataset[0,0]) is torch.Tensor:
+        merged = np.array([torch.hstack((x,y)).squeeze(0).detach().cpu().numpy() for x,y in realized_dataset])
+    else:
+        merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
     return pd.DataFrame(merged, columns=columns)
 
 

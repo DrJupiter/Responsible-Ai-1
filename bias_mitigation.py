@@ -8,6 +8,13 @@ import pandas as pd
 import random
 import time 
 
+# Reproduceability
+seed = 42
+torch.manual_seed(seed)
+random.seed(seed)
+np.random.seed(seed)
+
+
 
 class cfg:
    def __init__(self):

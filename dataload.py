@@ -141,5 +141,5 @@ if __name__ == "__main__":
     train, validation, test = datasplit(dataset)
     encoding = get_encoding_table()
     groups = group_split(train, encoding, 'V1_sex')
-    dataloader_to_dataframe(test, test.dataset.columns)
+    dataloader_to_dataframe(test, test.dataset.columns).info()
     print('succes')

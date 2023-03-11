@@ -23,7 +23,7 @@ class cfg:
       self.lr = 1e-4
       self.start_epoch = 0
       self.n_epochs = 200
-      self.print_freq = 50
+      self.print_freq = 1000
 
 def jointLoss(joint_preds, g1_preds, g2_preds, trg):
   group_criterion = torch.log.nn.BCELoss()
@@ -50,7 +50,7 @@ def main():
 
   # TODO: Specify which groups you are splitting over and create a corresponding number of models and then loop over them
 
-  ### Initialize model, optimizer and loss ###
+  ### Initialize model, optimizer and loss 
   joint_model = Net_Logistic(_x.size()[1])
   feature_model = FeatureModel(_x.size()[1])
   model_g1 = Net_Logistic(_x.size()[1])
@@ -72,73 +72,71 @@ def main():
   train_losses_g2, val_losses_g2, train_accs_g2, val_accs_g2 = [], [], [], []
 
   ### Define custom loss functions ###
-  criterion_m = nn.BCELoss(reduction='mean')
-  criterion_s = nn.BCELoss(reduction='sum')
+  criterion_m = nn.BCELoss(reduction='mean').to(CFG.device)
+  criterion_n = nn.BCELoss(reduction='none').to(CFG.device)
 
-  def Ld(out,target):
-    #criterion_s
-    l = []
-    for out_i, target_i in zip(out,target):
-      li = torch.log(criterion_m(out_i[0],target_i)) # idx with 0 as out_i is a list of the value and not the value
-      l.append(li)
-    L = torch.tensor(l).mean()
+  def Ld(out, target):
+    
+    # appending to a list fucks up the computational graph...
+    #l = []
+    #for out_i, target_i in zip(out,target):
+    #  li = torch.log(criterion_m(out_i[0],target_i)) # idx with 0 as out_i is a list of the value and not the value
+    #  l.append(li)
+    #L = torch.Tensor(l).mean()
+  
+    L = torch.sum(torch.log(criterion_n(out, target)+1e-16))
     return -L
+    #return criterion_m(out, target)
 
   def L0(out,target):
-    L = criterion_m(out,target) 
+    L = criterion_m(out, target) 
     return L
 
-  def LR(out ,target): # Out tuple(torch.Tensor,torch.Tensor), got error if it was in there
-    out = out[0]
-    out_t = out[1]
-    l = []
-    for out_i, out_t_i, target_i in zip(out,out_t,target):
-      li = torch.log(criterion_m(out_i,target_i))-torch.log(criterion_m(out_t_i,target_i))
-      l.append(li)
-    L = torch.tensor(l).mean()
-    return 0.7*L + L0(out,target)
+  def joint_loss(out_T, out_g1, out_g2, target): # Out tuple(torch.Tensor,torch.Tensor), got error if it was in there
+    #LR = torch.mean((criterion_n(out_g1, target)+1e-16) - (criterion_n(out_g2, target)+1e-16),dim=0)
+    LR = torch.mean(torch.log(criterion_n(out_g1, target)+1e-16) - torch.log(criterion_n(out_g2, target)+1e-16),dim=0)
+    L_0 = L0(out_T, target)
+    return L_0 + 0.7*LR
 
   ### Start training loop ###
   for i in range(CFG.start_epoch, CFG.n_epochs):
-     
+    
+    print("Training for group 1")
     # train and validate for group 1 (model, feature_model, dataloader, optimizer, criterion, CFG)
-    train_loss_g1, train_acc_g1 = train(model_g1, feature_model, train_m, optimizer_g1, Ld, CFG)
+    train_loss_g1, train_acc_g1 = train(model_g1, feature_model,None, None, train_m, optimizer_g1, Ld, CFG, train_type='group')
     train_losses_g1.append(train_loss_g1)
     train_accs_g1.append(train_acc_g1)
 
-    val_loss_g1, val_acc_g1 = validate(model_g1, val, Ld, CFG)
-    val_losses_g1.append(val_loss_g1)
-    val_accs_g1.append(val_acc_g1)
+    #val_loss_g1, val_acc_g1 = validate(model_g1,feature_model, val, Ld, CFG)
+    #val_losses_g1.append(val_loss_g1)
+    #val_accs_g1.append(val_acc_g1)
 
+    print("Training for group 2")
     # train and validate for group 2
-    train_loss_g2, train_acc_g2 = train(model_g2, feature_model, train_f, optimizer_g2, Ld, CFG)
+    train_loss_g2, train_acc_g2 = train(model_g2, feature_model,None, None, train_f, optimizer_g2, Ld, CFG, train_type='group')
     train_losses_g2.append(train_loss_g2)
     train_accs_g2.append(train_acc_g2)
-    val_loss_g2, val_acc_g2 = validate(model_g2, feature_model, val, Ld, CFG)
-    val_losses_g2.append(val_loss_g2)
-    val_accs_g2.append(val_acc_g2)
+    
+    
+    #val_loss_g2, val_acc_g2 = validate(model_g2, feature_model, val, Ld, CFG)
+    #val_losses_g2.append(val_loss_g2)
+    #val_accs_g2.append(val_acc_g2)
     
     # feature model training
-    train_loss_feature, train_acc_feature = train(feature_model, None, trainingset, feature_optimizer, Ld, CFG)
-    val_loss_feature, val_acc_feature = validate()
+    print("Training joint & feature model")
+    train_loss, train_acc = train(joint_model, feature_model, model_g1, model_g2, trainingset, (feature_optimizer, joint_optimizer), (joint_loss, L0), CFG)
+    #joint_train_losses.append(train_loss)
+    #joint_train_accs.append(train_acc)
 
-    # joint model training
-    train_loss, train_acc = train(joint_model, feature_model, trainingset, joint_optimizer, LR, CFG)
-    joint_train_losses.append(train_loss)
-    joint_train_accs.append(train_acc)
 
-    val_loss, val_acc = validate(joint_model, feature_model, val, L0, CFG)
-    joint_val_losses.append(val_loss)
-    joint_val_accs.append(val_acc)
-
-  tst_loss, tst_acc = validate(joint_model, feature_model, test, L0, CFG)
+  #tst_loss, tst_acc = validate(joint_model, feature_model, test, L0, CFG)
 
   fairness_2(joint_model(feature_model), test, CFG)
 
   return joint_train_losses, joint_train_accs, joint_val_losses, joint_val_accs, tst_loss, tst_acc
 
 
-def train(model, feature_model, dataloader, optimizer, criterion, CFG, train_type='feature'):
+def train(model, feature_model, model_g1, model_g2, dataloader, optimizer, criterion, CFG, train_type='feature'):
   model.train()
   accs = []
   losses = []
@@ -150,20 +148,42 @@ def train(model, feature_model, dataloader, optimizer, criterion, CFG, train_typ
 
     if train_type == 'feature':
       feature_out = feature_model(ipt)
+      out = model(feature_out)
+      #print(f"out: {out}")
       with torch.no_grad():
-        out = model(feature_out)
+        out_g1 = model_g1(ipt)
+        out_g2 = model_g2(ipt)
+        #print(f"Out_g1: {out_g1}")
+        #print(f"Out_g2: {out_g2}")
     
     else:
       with torch.no_grad():
-        feature_out = feature_model(ipt) 
-      out = model(feature_out)
-    
-    loss = criterion(out, trg)
-    losses.append(loss.detach().cpu())
+        feature_out = feature_model(ipt)
+      out = model(feature_out).squeeze(1)
+      #print("OUTTTT", out)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+    
+    if train_type == 'feature':
+      
+      loss_f = criterion[0](out, out_g1, out_g2, trg)
+      loss_j = criterion[1](out, trg)
+      losses.append((loss_f.detach().cpu(), loss_j.detach().cpu()))
+      optimizer[0].zero_grad()
+      optimizer[1].zero_grad()
+
+      loss_f.backward(retain_graph=True)
+      loss_j.backward(retain_graph=True)
+
+      optimizer[0].step()
+      optimizer[1].step()
+
+    else:
+      loss = criterion(out, trg)
+      losses.append(loss.detach().cpu())
+
+      optimizer.zero_grad()
+      loss.backward()
+      optimizer.step()
 
     end = time.time()
     if i % CFG.print_freq == 0:

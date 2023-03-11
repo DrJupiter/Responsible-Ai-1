@@ -22,7 +22,6 @@ def assessIndependence(df, preds, group='V4_area_origin'):
 
     return out
 
-
 def assessSeperation(df, preds, group = 'V4_area_origin'):
     groups = df[group].unique()
 

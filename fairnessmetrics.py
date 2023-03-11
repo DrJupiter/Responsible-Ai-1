@@ -85,7 +85,7 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
     return out
 
 # TODO: Save tests to a file
-def test_fairness(dataframe, predictions, log=True, print_out=True, path='./results', fairness_test_group = 'V4_area_origin'):
+def test_fairness(dataframe, predictions, log=True, print_out=True, fairness_test_group = 'V4_area_origin', save_path = "./result/fairness.json"):
 
     encoding_dict = get_encoding_table()
     reverse_group_dict = {v: k for k, v in encoding_dict['V1_sex'].items()}
@@ -104,7 +104,7 @@ def test_fairness(dataframe, predictions, log=True, print_out=True, path='./resu
 
 
     if log:
-        save_path = f"{path}/fairness.json" 
+        save_path = save_path 
         with open(save_path, 'w') as f:
             json.dump(results, f)
             f.close()

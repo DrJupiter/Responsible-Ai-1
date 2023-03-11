@@ -58,15 +58,19 @@ def group_split(dataset, encoding_table, group):
     for i, key in enumerate(encoding_table.keys()):
         if group == key:
             idx = i
-            group_encoding = {value: key for key, value in encoding[group].items()}
+            group_encoding = {value: key for key, value in encoding_table[group].items()}
 
             break
     if idx is None:
         raise ValueError("Unable to find group")
 
-    # Expected form (N, (feature,target))    
-    realized_dataset = np.array(list(iter(dataset)),dtype=np.object_)
-    merged = np.array([np.concatenate((x,y)) for x,y in realized_dataset])
+    # Expected form (N, (feature,target)) 
+    merged = []
+    for i,item in enumerate(list(iter(dataset))):
+        for merge in np.concatenate((item[0],item[1]),axis=1):
+            merged.append(merge)
+    merged = np.array(merged)
+
     unique = np.unique(merged[:,idx])
 
     group_splits = [] 

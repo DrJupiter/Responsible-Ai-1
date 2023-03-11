@@ -2,12 +2,13 @@ from model import Net_Logistic
 from feature_model import FeatureModel
 import torch
 import torch.nn as nn
-from dataload import CatalanDataset, datasplit, convert_dataload, dataloader_to_dataframe
+from dataload import CatalanDataset, datasplit, convert_dataload, dataloader_to_dataframe, get_encoding_table, group_split
 import numpy as np
 import pandas as pd
 import random
 import time 
 from fairnessmetrics import test_fairness
+from torch.utils.data import Dataset, DataLoader
 
 # Reproduceability
 seed = 42
@@ -31,10 +32,21 @@ def main():
   CFG = cfg()  
 
   ### Load data, split and initialize dataloaders ###
-  dataset = CatalanDataset(pd.read_csv(CFG.data_path))
-  DataloaderTrain, DataloaderTrainG1, DataloaderTrainG2, DataloaderVal, DataloaderTest = convert_dataload(datasplit(dataset))
-  _x, _y = next(iter(DataloaderTrain))
+  # dataset = CatalanDataset(pd.read_csv(CFG.data_path))
+  # DataloaderTrain, DataloaderTrainG1, DataloaderTrainG2, DataloaderVal, DataloaderTest = convert_dataload(datasplit(dataset))
 
+  CFG = cfg()
+  enc_table = get_encoding_table()
+  dataset = CatalanDataset(pd.read_csv(CFG.data_path), person_sensitive=True)
+  trainingset, val, test = convert_dataload(datasplit(dataset))
+  _x, _y = next(iter(trainingset))
+  train_m, train_f = group_split(trainingset, enc_table, 'V1_sex')
+  
+  train_m = DataLoader(train_m, batch_size=24)
+  train_f = DataLoader(train_f, batch_size=24)
+
+  # print(f"Males train data size: {len(train_m)}")
+  # print(f"Females train data size: {len(train_f)}")
 
   # TODO: Specify which groups you are splitting over and create a corresponding number of models and then loop over them
 
@@ -67,7 +79,7 @@ def main():
     #criterion_s
     l = []
     for out_i, target_i in zip(out,target):
-      li = torch.log(criterion_m(out_i,target_i))
+      li = torch.log(criterion_m(out_i[0],target_i)) # idx with 0 as out_i is a list of the value and not the value
       l.append(li)
     L = torch.tensor(l).mean()
     return -L
@@ -76,7 +88,7 @@ def main():
     L = criterion_m(out,target) 
     return L
 
-  def LR(out: tuple(torch.Tensor,torch.Tensor),target):
+  def LR(out ,target): # Out tuple(torch.Tensor,torch.Tensor), got error if it was in there
     out = out[0]
     out_t = out[1]
     l = []
@@ -89,40 +101,39 @@ def main():
   ### Start training loop ###
   for i in range(CFG.start_epoch, CFG.n_epochs):
      
-    # train and validate for group 1
-    train_loss_g1, train_acc_g1 = train(model_g1, DataloaderTrainG1, optimizer_g1, Ld, CFG)
+    # train and validate for group 1 (model, feature_model, dataloader, optimizer, criterion, CFG)
+    train_loss_g1, train_acc_g1 = train(model_g1, feature_model, train_m, optimizer_g1, Ld, CFG)
     train_losses_g1.append(train_loss_g1)
     train_accs_g1.append(train_acc_g1)
 
-    val_loss_g1, val_acc_g1 = validate(model_g1, DataloaderVal, Ld, CFG)
+    val_loss_g1, val_acc_g1 = validate(model_g1, val, Ld, CFG)
     val_losses_g1.append(val_loss_g1)
     val_accs_g1.append(val_acc_g1)
 
     # train and validate for group 2
-    train_loss_g2, train_acc_g2 = train(model_g2, feature_model, DataloaderTrainG2, optimizer_g2, Ld, CFG)
+    train_loss_g2, train_acc_g2 = train(model_g2, feature_model, train_f, optimizer_g2, Ld, CFG)
     train_losses_g2.append(train_loss_g2)
     train_accs_g2.append(train_acc_g2)
-    val_loss_g2, val_acc_g2 = validate(model_g2, feature_model, DataloaderVal, Ld, CFG)
+    val_loss_g2, val_acc_g2 = validate(model_g2, feature_model, val, Ld, CFG)
     val_losses_g2.append(val_loss_g2)
     val_accs_g2.append(val_acc_g2)
     
     # feature model training
-    train_loss_feature, train_acc_feature = train(feature_model, None, DataloaderTrain, feature_optimizer, Ld, CFG)
+    train_loss_feature, train_acc_feature = train(feature_model, None, trainingset, feature_optimizer, Ld, CFG)
     val_loss_feature, val_acc_feature = validate()
-    
 
     # joint model training
-    train_loss, train_acc = train(joint_model, feature_model, DataloaderTrain, joint_optimizer, LR, CFG)
+    train_loss, train_acc = train(joint_model, feature_model, trainingset, joint_optimizer, LR, CFG)
     joint_train_losses.append(train_loss)
     joint_train_accs.append(train_acc)
 
-    val_loss, val_acc = validate(joint_model, feature_model, DataloaderVal, L0, CFG)
+    val_loss, val_acc = validate(joint_model, feature_model, val, L0, CFG)
     joint_val_losses.append(val_loss)
     joint_val_accs.append(val_acc)
 
-  tst_loss, tst_acc = validate(joint_model, feature_model, DataloaderTest, L0, CFG)
+  tst_loss, tst_acc = validate(joint_model, feature_model, test, L0, CFG)
 
-  fairness_2(joint_model(feature_model), DataloaderTest, CFG)
+  fairness_2(joint_model(feature_model), test, CFG)
 
   return joint_train_losses, joint_train_accs, joint_val_losses, joint_val_accs, tst_loss, tst_acc
 
@@ -198,19 +209,14 @@ def fairness_2(joint_model, feature_model, dataloader, CFG):
    
   df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
 
-  test_fairness(df, predictions)
+  test_fairness(df, predictions,save_path = "./result/fairness_mitigation.json")
 
 ### Load data, split and initialize dataloaders ###
-CFG = cfg()
-dataset = CatalanDataset(pd.read_csv(CFG.data_path), person_sensitive=True)
-train1, train2, val, test = convert_dataload(datasplit(dataset), regularized_training=True)
 
-print(f"Males train data size: {len(train1.dataset.data_table)}")
-print(f"Females train data size: {len(train2.dataset.data_table)}")
 
 #train1, train2, val, test = convert_dataload(datasplit(dataset), regularized_training=True)
 #print(len(train1.dataset))
 #print(len(train2.dataset)) 
 
-if __name__ == 'main':
-  main()
+# if __name__ == 'main':
+main()

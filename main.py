@@ -1,7 +1,7 @@
 #%%
 from model import Net_Logistic
 import torch
-from dataload import CatalanDataset, datasplit, convert_dataload, dataloader_to_dataframe
+from dataload import CatalanDataset, datasplit, convert_dataload, dataloader_to_dataframe, get_encoding_table
 from fairnessmetrics import test_fairness
 import numpy as np
 import pandas as pd
@@ -45,7 +45,6 @@ def main():
   criterion = torch.nn.BCELoss().to(CFG.device)
 
   train_losses, val_losses, train_accs, val_accs = [], [], [], []
-  fairness(model, DataloaderTest, CFG)
   ### Start training loop ###
   for i in range(CFG.start_epoch, CFG.n_epochs):
     print("epoch:",i)
@@ -62,17 +61,9 @@ def main():
   test_loss, test_acc, predictions = validate(model, DataloaderTest, criterion, CFG)
   test_losses.append(test_loss)
   test_acc.append(test_acc)
-
-  # get the correct columns
-  cols = pd_df.columns
-  cols = list(pd_df.columns[5:]) # remove personal variables
-  # move recid to index 0
-  cols[0] = 'V115_RECID2015_recid'
-  cols = cols[:16]+cols[17:] 
-  test_pd_df = dataloader_to_dataframe(DataloaderTest, cols)
-
-  # get predictions
-  test_fairness(test_pd_df, predictions, log=True, print=True)
+  
+  # save fairness data in results/fairnes.json
+  fairness(model, DataloaderTest, CFG)
 
   return train_losses, val_losses, train_accs, val_accs, test_losses, test_acc
   
@@ -140,3 +131,5 @@ def fairness(model, dataloader, CFG):
   test_fairness(df, predictions)
 if __name__ == "__main__":
   main()
+
+# %%

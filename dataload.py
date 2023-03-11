@@ -38,7 +38,7 @@ def encode(data_frame):
     map_dict = {item: i for i, item in enumerate(unique)}
     return data_frame.map(map_dict), map_dict
 
-def datasplit(dataset, split=[0.3,0.3,0.4], r_idx=2, seed=42):
+def datasplit(dataset, split=[0.6,0.15,0.25], r_idx=2, seed=42):
     """
     Splits the data into train, validation and test
     """

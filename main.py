@@ -22,7 +22,7 @@ class cfg:
       self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
       self.lr = 1e-4
       self.start_epoch = 0
-      self.n_epochs = 0
+      self.n_epochs = 500
       self.print_freq = 50
 
 

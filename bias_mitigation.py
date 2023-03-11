@@ -2,11 +2,12 @@ from model import Net_Logistic
 from feature_model import FeatureModel
 import torch
 import torch.nn as nn
-from dataload import CatalanDataset, datasplit, convert_dataload 
+from dataload import CatalanDataset, datasplit, convert_dataload, dataloader_to_dataframe
 import numpy as np
 import pandas as pd
 import random
 import time 
+from fairnessmetrics import test_fairness
 
 # Reproduceability
 seed = 42
@@ -20,13 +21,11 @@ class cfg:
       self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
       self.lr = 1e-4
       self.start_epoch = 0
-      self.n_epochs = 700
+      self.n_epochs = 200
       self.print_freq = 50
 
 def jointLoss(joint_preds, g1_preds, g2_preds, trg):
   group_criterion = torch.log.nn.BCELoss()
-
-
 
 def main():
   CFG = cfg()  
@@ -121,6 +120,12 @@ def main():
     joint_val_losses.append(val_loss)
     joint_val_accs.append(val_acc)
 
+  tst_loss, tst_acc = validate(joint_model, feature_model, DataloaderTest, L0, CFG)
+
+  fairness_2(joint_model(feature_model), DataloaderTest, CFG)
+
+  return joint_train_losses, joint_train_accs, joint_val_losses, joint_val_accs, tst_loss, tst_acc
+
 
 def train(model, feature_model, dataloader, optimizer, criterion, CFG, train_type='feature'):
   model.train()
@@ -178,7 +183,22 @@ def validate(model, feature_model, dataloader, criterion, CFG):
 
   return losses, accs
 
-CFG = cfg()  
+def fairness_2(joint_model, feature_model, dataloader, CFG):
+  joint_model.eval()
+  feature_model.eval()
+  predictions = []
+  
+  with torch.no_grad():
+    for i, (ipt, trg) in enumerate(dataloader):
+      ipt = ipt.to(CFG.device)
+      trg = trg.to(CFG.device)
+      
+      #np.where(model(ipt).detach().cpu().numpy() <= 0.5, 1, 0)
+      predictions.append((joint_model(feature_model(ipt)).round()).reshape(-1).detach().cpu().numpy())
+   
+  df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
+
+  test_fairness(df, predictions)
 
 ### Load data, split and initialize dataloaders ###
 CFG = cfg()

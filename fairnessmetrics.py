@@ -10,7 +10,7 @@ def assessIndependence(df, preds, group='V4_area_origin'):
     # unique values
     groups = df[group].unique()
 
-    out = {int(e) : 0 for e in groups}
+    out = {g : 0 for g in groups}
 
     for idx, pred in enumerate(preds):
 
@@ -34,7 +34,7 @@ def assessSeperation(df, preds, group = 'V4_area_origin'):
         y_pred[df.loc[idx][group]].append(pred)
         y_true[df.loc[idx][group]].append(df.loc[idx]['V115_RECID2015_recid'])
 
-    out = {int(e): (0,0) for e in groups}
+    out = {e: (0,0) for e in groups}
 
     for group in groups:
         #calculating the true positive rate and false positive rate across groups
@@ -66,7 +66,7 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
                 # Getting number of true values for y=1, given the model predicts r=0
                 r_0[df.loc[idx][group]][1] += 1
 
-    out = {int(e): (0, 0) for e in groups}
+    out = {e: (0, 0) for e in groups}
 
     # Getting the sufficiency rate for predictors r=0 and r=1 for each group
     for group in groups:
@@ -85,20 +85,24 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
     return out
 
 # TODO: Save tests to a file
-def test_fairness(dataframe, predictions, log=True, print_out=True, path='./results'):
+def test_fairness(dataframe, predictions, log=True, print_out=True, path='./results', fairness_test_group = 'V4_area_origin'):
+
+    encoding_dict = get_encoding_table()
+    reverse_group_dict = {v: k for k, v in encoding_dict['V4_area_origin'].items()}
 
     out1 = assessIndependence(dataframe, predictions, group = 'V4_area_origin')
+    # out1 = {reverse_group_dict[k]: v for k,v in out1.items()}
     out2 = assessSeperation(dataframe, predictions, group = 'V4_area_origin')
+    # out2 = {reverse_group_dict[k]: v for k,v in out2.items()}
     out3 = assessSufficiency(dataframe, predictions, group = 'V4_area_origin')
+    # out3 = {reverse_group_dict[k]: v for k,v in out3.items()}
     metric_results = [out1, out2, out3]
     metrics = ['independence', 'seperation', 'sufficiency']
     
     results = {m: m_res for (m, m_res) in zip(metrics, metric_results)}
     # FIX: DOING THE TODO AT THE TOP OF THE FILE 
-    print(results)
 
-    # encoding_dict = get_encoding_table()
-    # print(encoding_dict)
+
     if log:
         save_path = f"{path}/fairness.json" 
         with open(save_path, 'w') as f:

@@ -141,7 +141,7 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
     ipt = ipt.to(CFG.device)
     trg = trg.to(CFG.device)
 
-    if train_type='group':
+    if train_type =='group':
       feature_model.eval()
       with torch.no_grad():
         feature_out = feature_model(ipt)

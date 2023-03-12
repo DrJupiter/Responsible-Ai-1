@@ -11,6 +11,5 @@ class FeatureModel(nn.Module):
         
     def forward(self,x):
         x = torch.relu(self.fc1(x))
-        x = torch.sigmoid(self.fc2(x))
         x = torch.relu(self.fc3(x))
         return x

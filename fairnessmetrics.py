@@ -87,13 +87,13 @@ def assessSufficiency(df, preds, group = 'V4_area_origin'):
 def test_fairness(dataframe, predictions, log=True, print_out=True, fairness_test_group = 'V4_area_origin', save_path = "./result/fairness.json"):
 
     encoding_dict = get_encoding_table()
-    reverse_group_dict = {v: k for k, v in encoding_dict['V1_sex'].items()}
+    reverse_group_dict = {v: k for k, v in encoding_dict[fairness_test_group].items()}
 
-    out1 = assessIndependence(dataframe, predictions, group = 'V1_sex')
+    out1 = assessIndependence(dataframe, predictions, group = fairness_test_group)
     out1 = {reverse_group_dict[int(k)]: v for k,v in out1.items()}
-    out2 = assessSeperation(dataframe, predictions, group = 'V1_sex')
+    out2 = assessSeperation(dataframe, predictions, group = fairness_test_group)
     out2 = {reverse_group_dict[int(k)]: v for k,v in out2.items()}
-    out3 = assessSufficiency(dataframe, predictions, group = 'V1_sex')
+    out3 = assessSufficiency(dataframe, predictions, group = fairness_test_group)
     out3 = {reverse_group_dict[int(k)]: v for k,v in out3.items()}
     metric_results = [out1, out2, out3]
     metrics = ['independence', 'seperation', 'sufficiency']

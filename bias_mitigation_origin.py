@@ -38,15 +38,12 @@ def main():
   CFG = cfg()
   enc_table = get_encoding_table()
   dataset = CatalanDataset(pd.read_csv(CFG.data_path), person_sensitive=True)
-  trainingset, val, test = convert_dataload(datasplit(dataset))
-  _x, _y = next(iter(trainingset))
-  train_g1, train_g2, train_g3, train_g4, train_g5 = group_split(trainingset, enc_table, 'V4_area_origin')
-  
-  train_g1 = DataLoader(train_g1, batch_size=24)
-  train_g2 = DataLoader(train_g2, batch_size=24)
-  train_g3 = DataLoader(train_g3, batch_size=24)
-  train_g4 = DataLoader(train_g4, batch_size=24)
-  train_g5 = DataLoader(train_g5, batch_size=24)
+  training_set, validation_set, test_set = convert_dataload(datasplit(dataset))
+  _x, _y = next(iter(training_set))
+  #train_g1, train_g2, train_g3, train_g4, train_g5 = group_split(trainingset, enc_table, 'V4_area_origin')
+  group='V4_area_origin'
+  group_splits = group_split(training_set, enc_table, 'V4_area_origin')
+  group_splits = convert_dataload(group_splits, batchsizes=[24]*len(group_splits), shuffle=[True]*len(group_splits)) 
 
 
   # print(f"Males train data size: {len(train_m)}")
@@ -57,28 +54,15 @@ def main():
   ### Initialize model, optimizer and loss 
   joint_model = Net_Logistic(_x.size()[1]).to(CFG.device)
   feature_model = FeatureModel(_x.size()[1]).to(CFG.device)
-
-  model_g1 = Net_Logistic(_x.size()[1]).to(CFG.device)
-  model_g2 = Net_Logistic(_x.size()[1]).to(CFG.device)
-  model_g3 = Net_Logistic(_x.size()[1]).to(CFG.device)
-  model_g4 = Net_Logistic(_x.size()[1]).to(CFG.device)
-  model_g5 = Net_Logistic(_x.size()[1]).to(CFG.device)
+  group_models = [Net_Logistic(_x.size()[1]).to(CFG.device) for _ in range(len(group_splits))]
 
   joint_optimizer = torch.optim.Adam(joint_model.parameters(), lr=CFG.lr)
   feature_optimizer = torch.optim.Adam(feature_model.parameters(), lr=CFG.lr)
-  optimizer_g1 = torch.optim.Adam(model_g1.parameters(), lr=CFG.lr)
-  optimizer_g2 = torch.optim.Adam(model_g2.parameters(), lr=CFG.lr)
-  optimizer_g3 = torch.optim.Adam(model_g3.parameters(), lr=CFG.lr)
-  optimizer_g4 = torch.optim.Adam(model_g4.parameters(), lr=CFG.lr)
-  optimizer_g5 = torch.optim.Adam(model_g5.parameters(), lr=CFG.lr)
+  group_optimizers = [torch.optim.Adam(group_model.parameters(), lr=CFG.lr) for group_model in group_models]
 
   joint_train_losses, joint_val_losses, joint_train_accs, joint_val_accs = [], [], [], []
   feature_train_losses, feature_val_losses, feature_train_accs, feature_val_accs = [], [], [], []
-  train_losses_g1, val_losses_g1, train_accs_g1, val_accs_g1 = [], [], [], []
-  train_losses_g2, val_losses_g2, train_accs_g2, val_accs_g2 = [], [], [], []
-  train_losses_g3, val_losses_g3, train_accs_g3, val_accs_g3 = [], [], [], []
-  train_losses_g4, val_losses_g4, train_accs_g4, val_accs_g4 = [], [], [], []
-  train_losses_g5, val_losses_g5, train_accs_g5, val_accs_g5 = [], [], [], []
+  group_log = {i: {'train_loss': [], 'validation_loss': [], 'train_accuracy': [], 'validation_accuracy': [] } for i in range(len(group_splits))}
 
   ### Define custom loss functions ###
   criterion_m = nn.BCELoss(reduction='mean').to(CFG.device)
@@ -110,53 +94,37 @@ def main():
   
   ### Start training loop ###
   for i in range(CFG.start_epoch, CFG.n_epochs):    
-    
-    print("Training for group 1") #train_m
-    train_loss_g1, train_acc_g1 = train(model_g1, feature_model, None, train_g1, optimizer_g1, Ld, CFG, train_type='group')
-    train_losses_g1.append(train_loss_g1)
-    train_accs_g1.append(train_acc_g1)
 
-    val_loss_g1, val_acc_g1 = validate(model_g1,feature_model, val, Ld, CFG)
-    val_losses_g1.append(val_loss_g1)
-    val_accs_g1.append(val_acc_g1)
+    for (g, (group_split, group_model, group_optimizer)) in enumerate(zip(group_splits, group_models, group_optimizers)):
+      # TODO: checkout criterion here
+      print(f"Training group {g}") # TODO: Print which group this is semantically
+      loss, accuracy = train(group_model, feature_model, None, group_split, group_optimizer, criterion=Ld, CFG=CFG, train_type='group') 
 
-    print("Training for group 2")
-    train_loss_g2, train_acc_g2 = train(model_g2, feature_model, None, train_g2, optimizer_g2, Ld, CFG, train_type='group')
-    train_losses_g2.append(train_loss_g2)
-    train_accs_g2.append(train_acc_g2)
 
-    val_loss_g2, val_acc_g2 = validate(model_g2, feature_model, val, Ld, CFG)
-    val_losses_g2.append(val_loss_g2)
-    val_accs_g2.append(val_acc_g2)
-    
-    print("Training for group 3") #train_m
-    train_loss_g3, train_acc_g3 = train(model_g3, feature_model, None, train_g3, optimizer_g3, Ld, CFG, train_type='group')
-    train_losses_g3.append(train_loss_g3)
-    train_accs_g3.append(train_acc_g3)
+      group_log[g]['train_loss'].append(loss)
+      group_log[g]['train_accuracy'].append(accuracy)
 
-    print("Training for group 4") #train_m
-    train_loss_g4, train_acc_g4 = train(model_g4, feature_model, None, train_g4, optimizer_g4, Ld, CFG, train_type='group')
-    train_losses_g4.append(train_loss_g4)
-    train_accs_g4.append(train_acc_g4)
+      # TODO: Potential bug in the reusing of the validation set
+      loss, accuracy = validate(group_model, feature_model, validation_set, Ld, CFG)
+      group_log[g]['validation_loss'].append(loss)
+      group_log[g]['validation_accuracy'].append(accuracy)
 
-    print("Training for group 5") #train_m
-    train_loss_g5, train_acc_g5 = train(model_g5, feature_model, None, train_g5, optimizer_g5, Ld, CFG, train_type='group')
-    train_losses_g5.append(train_loss_g5)
-    train_accs_g5.append(train_acc_g5)
+
+
     
     print("Training joint & feature model")
-    train_loss, train_acc = train(joint_model, feature_model, (model_g1, model_g2, model_g3, model_g4, model_g5) ,trainingset, (feature_optimizer, joint_optimizer), (joint_loss, L0), CFG, train_type='feature')
+    train_loss, train_acc = train(joint_model, feature_model, group_models , training_set, (feature_optimizer, joint_optimizer), (joint_loss, L0), CFG, train_type='feature')
     joint_train_losses.append(train_loss)
     joint_train_accs.append(train_acc)
 
-    joint_val_loss, joint_val_acc = validate(joint_model, feature_model, val, L0, CFG)
+    joint_val_loss, joint_val_acc = validate(joint_model, feature_model, validation_set, L0, CFG)
     joint_val_losses.append(joint_val_loss)
     joint_train_accs.append(joint_val_acc)
 
   print("Testing final model")
-  tst_loss, tst_acc = validate(joint_model, feature_model, test, L0, CFG)
+  tst_loss, tst_acc = validate(joint_model, feature_model, test_set, L0, CFG)
 
-  fairness_2(joint_model,feature_model, test, CFG)
+  fairness_2(joint_model,feature_model, test_set, CFG)
 
   return joint_train_losses, joint_train_accs, joint_val_losses, joint_val_accs#, tst_loss, tst_acc
 
@@ -176,18 +144,13 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
       out = model(feature_out)
       #print(f"out: {out}")
       with torch.no_grad():
-        out_g1 = group_models[0](feature_out)
-        out_g2 = group_models[1](feature_out)
-        out_g3 = group_models[2](feature_out)
-        out_g4 = group_models[3](feature_out)
-        out_g5 = group_models[4](feature_out)
+        # TODO: Potential error here attempt copy
+        group_outs = [group_model(feature_out) for group_model in group_models]
 
-      #print(f"Out_g1: {out_g1.squeeze(1)}")
-      #print(f"Out_g2: {out_g2.squeeze(1)}")'
 
-      loss_f = criterion[0](out, (out_g1, out_g2, out_g3, out_g4, out_g5), trg)
+      loss_f = criterion[0](out, group_outs, trg)
       loss_j = criterion[1](out, trg)
-      #losses.append((loss_f.detach().cpu(), loss_j.detach().cpu()))
+
       losses.append(loss_j.detach().cpu())
       optimizer[0].zero_grad()
       optimizer[1].zero_grad()
@@ -211,8 +174,7 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
       loss.backward()
       optimizer.step()
 
-      #print("OUTTTT", out)
-
+    # TODO: Double check this makes sense
     acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)
       
     end = time.time()

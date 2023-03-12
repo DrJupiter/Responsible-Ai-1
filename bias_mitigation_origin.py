@@ -130,21 +130,41 @@ def main():
 
 
 def train(model, feature_model, group_models, dataloader, optimizer, criterion, CFG, train_type='feature'):
-  model.train()
+
   losses = []
   start = time.time()
   acc = 0
+
+  model.train()
 
   for i, (ipt, trg) in enumerate(dataloader):
     ipt = ipt.to(CFG.device)
     trg = trg.to(CFG.device)
 
-    if train_type == 'feature':
+    if train_type='group':
+      feature_model.eval()
+      with torch.no_grad():
+        feature_out = feature_model(ipt)
+        
+
+      out = model(feature_out).squeeze(1)
+      loss = criterion(out, trg)
+      losses.append(loss.detach().cpu())
+
+      optimizer.zero_grad()
+      loss.backward()
+      optimizer.step()
+
+    elif train_type == 'feature':
+      feature_model.train()
       feature_out = feature_model(ipt)
       out = model(feature_out)
       #print(f"out: {out}")
       with torch.no_grad():
         # TODO: Potential error here attempt copy
+        for group_model in group_models:
+          group_model.eval()
+
         group_outs = [group_model(feature_out) for group_model in group_models]
 
 
@@ -161,18 +181,7 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
       optimizer[0].step()
       optimizer[1].step()
     
-    else:
-      with torch.no_grad():
-        feature_out = feature_model(ipt)
-        
-      
-      out = model(feature_out).squeeze(1)
-      loss = criterion(out, trg)
-      losses.append(loss.detach().cpu())
 
-      optimizer.zero_grad()
-      loss.backward()
-      optimizer.step()
 
     # TODO: Double check this makes sense
     acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)

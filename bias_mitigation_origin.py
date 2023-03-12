@@ -65,8 +65,9 @@ def main():
   group_log = {i: {'train_loss': [], 'validation_loss': [], 'train_accuracy': [], 'validation_accuracy': [] } for i in range(len(group_splits))}
 
   ### Define custom loss functions ###
-  criterion_m = nn.BCELoss(reduction='mean').to(CFG.device)
-  criterion_n = nn.BCELoss(reduction='none').to(CFG.device)
+  BinaryCrossEntropy_Loss_AVG = nn.BCELoss(reduction='mean').to(CFG.device)
+  BinaryCrossEntropy_Loss_AVG.train()
+  BinaryCrossEntropy_Loss_ACC = nn.BCELoss(reduction='none').to(CFG.device)
 
   def Ld(out, target):
     
@@ -74,20 +75,32 @@ def main():
     Original Ld code 1/1 from paper: (does not work)
     #L = torch.sum(torch.log(criterion_n(out, target)+1e-16))
     #return L
+
+    The way this will be used will technically be incorrect in terms of the trainig being split, but as the models are independent of each other in data and training variables, this should be fine.
+      - See Algorithm 1 for deatails in http://proceedings.mlr.press/v139/lee21b/lee21b.pdf?fbclid=IwAR3wxI7bdEwcNRXSoqci8VatNbIZCzjP3K3TkxXWfz9dVzEpI42iGkpNAIc#page=10&zoom=100,0,0
     """
-    return torch.log(criterion_m(out, target))
+    
+    return BinaryCrossEntropy_Loss_AVG(out, target)
 
   def L0(out,target):
-    L = criterion_m(out, target) 
+    L = BinaryCrossEntropy_Loss_AVG(out, target) 
     return L
 
-  def joint_loss(out_T, group_out, target): # Out tuple(torch.Tensor,torch.Tensor), got error if it was in there
+  def joint_loss(out_T, group_out, target, CFG): # Out tuple(torch.Tensor,torch.Tensor), got error if it was in there
     #LR = torch.abs(torch.mean(torch.log(criterion_n(out_g1, target)+1e-16) - torch.log(criterion_n(out_g2, target)+1e-16),dim=0))
     #LR = torch.mean(torch.log(out_g1) - torch.log(out_g2 + 1e-16),dim=0)
 
     LR = 0
-    for out in group_out:
-      LR += torch.log(criterion_m(out, target))
+    n = len(group_out)
+    p_g = 1/(n-1)
+    for i, out in enumerate(group_out):
+      #p = torch.tensor([ p_g for g in range(n) if g != i else 0.0]).to(CFG.device)
+      probabilities = []
+      for g in range(n):
+        p = p_g if g != i else 0.0 
+      probabilities = torch.tensor(probabilities).to(CFG.device)
+      idx = torch.multinomial(probabilities, 1).to(CFG.device)
+      LR += BinaryCrossEntropy_Loss_ACC(out, group_out[idx])
     LR = torch.mean(LR)
     L_0 = L0(out_T, target)
     return L_0 + 0.7*LR
@@ -149,11 +162,12 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
 
       out = model(feature_out).squeeze(1)
       loss = criterion(out, trg)
-      losses.append(loss.detach().cpu())
 
       optimizer.zero_grad()
       loss.backward()
       optimizer.step()
+      
+      losses.append(loss.detach().cpu())
 
     elif train_type == 'feature':
       feature_model.train()
@@ -168,10 +182,9 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
         group_outs = [group_model(feature_out) for group_model in group_models]
 
 
-      loss_f = criterion[0](out, group_outs, trg)
+      loss_f = criterion[0](out, group_outs, trg, CFG)
       loss_j = criterion[1](out, trg)
 
-      losses.append(loss_j.detach().cpu())
       optimizer[0].zero_grad()
       optimizer[1].zero_grad()
 
@@ -180,6 +193,8 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
 
       optimizer[0].step()
       optimizer[1].step()
+
+      losses.append(loss_j.detach().cpu())
     
 
 
@@ -249,5 +264,5 @@ def accuracy(pred, trg):
 #print(len(train1.dataset))
 #print(len(train2.dataset)) 
 
-# if __name__ == 'main':
-main()
+if __name__ == 'main':
+  main()

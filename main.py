@@ -8,6 +8,7 @@ import pandas as pd
 import random
 import time 
 
+import pdb
 #%%
 
 # Reducability
@@ -23,7 +24,7 @@ class cfg:
       self.lr = 1e-4
       self.start_epoch = 0
       self.n_epochs = 500
-      self.print_freq = 500
+      self.print_freq = 100
 
 
 def main():
@@ -71,7 +72,7 @@ def main():
 
 def train(model, dataloader, optimizer, criterion, CFG):
   model.train()
-  accs = []
+  acc = 0
   losses = []
   start = time.time()
 
@@ -86,15 +87,18 @@ def train(model, dataloader, optimizer, criterion, CFG):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-
+    
+    acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)
+    #pdb.set_trace()
     end = time.time()
     if i % CFG.print_freq == 0:
-       print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses)}")
-  return losses, accs
+       print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses):.4f}\nAcc: {acc / (trg.size(0)*i+1):.4f}")
+  
+  return losses, acc
 
 def validate(model, dataloader, criterion, CFG):
   model.eval()
-  accs = []
+  acc = 0
   losses = []
   predictions = []
   start = time.time()
@@ -108,11 +112,13 @@ def validate(model, dataloader, criterion, CFG):
       loss = criterion(out, trg)
       losses.append(loss.cpu())
       predictions.append(out)
+
+      acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)
       end = time.time()
       if i % CFG.print_freq == 0:
-        print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses):.4f}")
+        print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses):.4f}\nAcc: {acc/(trg.size(0)*i+1):.4f}")
 
-  return losses, accs, predictions
+  return losses, acc, predictions
 
 def fairness(model, dataloader, CFG):
   model.eval()
@@ -129,6 +135,15 @@ def fairness(model, dataloader, CFG):
   df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
 
   test_fairness(df, predictions)
+
+def accuracy(pred, trg):
+  acc = 0
+  for i in range(pred.size(0)):
+    if pred[i]==trg[i]:
+      acc+=1
+  
+  return acc
+
 if __name__ == "__main__":
   main()
 

@@ -10,8 +10,10 @@ import time
 from fairnessmetrics import test_fairness
 from torch.utils.data import Dataset, DataLoader
 
+# IDK WHY THIS IS NECESSARY, BUT IN MAIN IT DOESN'T RECOGNIZE THE FUNCTION UNLESS WE DO THIS
+GS = group_split
 # Reproduceability
-seed = 42
+seed = 43
 torch.manual_seed(seed)
 random.seed(seed)
 np.random.seed(seed)
@@ -20,13 +22,11 @@ class cfg:
    def __init__(self):
       self.data_path = './data/preprocessed.csv'
       self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-      self.lr = 1e-4
+      self.lr = 1e-3
       self.start_epoch = 0
-      self.n_epochs = 10
+      self.n_epochs = 1
       self.print_freq = 10000
 
-def jointLoss(joint_preds, g1_preds, g2_preds, trg):
-  group_criterion = torch.log.nn.BCELoss()
 
 def main():
   CFG = cfg()  
@@ -42,7 +42,7 @@ def main():
   _x, _y = next(iter(training_set))
   #train_g1, train_g2, train_g3, train_g4, train_g5 = group_split(trainingset, enc_table, 'V4_area_origin')
   group='V4_area_origin'
-  group_splits = group_split(training_set, enc_table, 'V4_area_origin')
+  group_splits = GS(training_set, enc_table, 'V4_area_origin')
   group_splits = convert_dataload(group_splits, batchsizes=[24]*len(group_splits), shuffle=[True]*len(group_splits)) 
 
 
@@ -98,6 +98,8 @@ def main():
       probabilities = []
       for g in range(n):
         p = p_g if g != i else 0.0 
+        probabilities.append(p)
+
       probabilities = torch.tensor(probabilities).to(CFG.device)
       idx = torch.multinomial(probabilities, 1).to(CFG.device)
       LR += BinaryCrossEntropy_Loss_ACC(out, group_out[idx])
@@ -110,7 +112,7 @@ def main():
 
     for (g, (group_split, group_model, group_optimizer)) in enumerate(zip(group_splits, group_models, group_optimizers)):
       # TODO: checkout criterion here
-      print(f"Training group {g}") # TODO: Print which group this is semantically
+      #print(f"Training group {g}") # TODO: Print which group this is semantically
       loss, accuracy = train(group_model, feature_model, None, group_split, group_optimizer, criterion=Ld, CFG=CFG, train_type='group') 
 
 
@@ -118,21 +120,22 @@ def main():
       group_log[g]['train_accuracy'].append(accuracy)
 
       # TODO: Potential bug in the reusing of the validation set
-      loss, accuracy = validate(group_model, feature_model, validation_set, Ld, CFG)
-      group_log[g]['validation_loss'].append(loss)
-      group_log[g]['validation_accuracy'].append(accuracy)
+      if i % 100 == 0:
+        loss, accuracy = validate(group_model, feature_model, validation_set, Ld, CFG)
+        group_log[g]['validation_loss'].append(loss)
+        group_log[g]['validation_accuracy'].append(accuracy)
 
 
 
     
-    print("Training joint & feature model")
+    #print("Training joint & feature model")
     train_loss, train_acc = train(joint_model, feature_model, group_models , training_set, (feature_optimizer, joint_optimizer), (joint_loss, L0), CFG, train_type='feature')
     joint_train_losses.append(train_loss)
     joint_train_accs.append(train_acc)
-
-    joint_val_loss, joint_val_acc = validate(joint_model, feature_model, validation_set, L0, CFG)
-    joint_val_losses.append(joint_val_loss)
-    joint_train_accs.append(joint_val_acc)
+    if i % 100 == 0:
+      joint_val_loss, joint_val_acc = validate(joint_model, feature_model, validation_set, L0, CFG)
+      joint_val_losses.append(joint_val_loss)
+      joint_train_accs.append(joint_val_acc)
 
   print("Testing final model")
   tst_loss, tst_acc = validate(joint_model, feature_model, test_set, L0, CFG)
@@ -159,7 +162,7 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
       with torch.no_grad():
         feature_out = feature_model(ipt)
         
-
+      torch.set_grad_enabled(True)
       out = model(feature_out).squeeze(1)
       loss = criterion(out, trg)
 
@@ -174,12 +177,12 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
       feature_out = feature_model(ipt)
       out = model(feature_out)
       #print(f"out: {out}")
-      with torch.no_grad():
+      #with torch.no_grad():
         # TODO: Potential error here attempt copy
-        for group_model in group_models:
-          group_model.eval()
+      for group_model in group_models:
+        group_model.eval()
 
-        group_outs = [group_model(feature_out) for group_model in group_models]
+      group_outs = [group_model(feature_out) for group_model in group_models]
 
 
       loss_f = criterion[0](out, group_outs, trg, CFG)
@@ -199,14 +202,14 @@ def train(model, feature_model, group_models, dataloader, optimizer, criterion, 
 
 
     # TODO: Double check this makes sense
-    acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)
+    acc += accuracy(out.round().reshape(-1).detach().cpu(),trg.reshape(-1).detach().cpu())
       
     end = time.time()
     #if i % CFG.print_freq == 0:
     #   print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses)}\nAcc: {acc / (trg.size(0)*i+1):.4f}")
 
   acc = acc/len(dataloader.dataset)
-  print(f"FINAL ACCURACY: {acc:.4f}\nFinal loss: {np.mean(losses):.4f}")
+  #print(f"FINAL ACCURACY: {acc:.4f}\nFinal loss: {np.mean(losses):.4f}")
   return losses, acc
 
 def validate(model, feature_model, dataloader, criterion, CFG):
@@ -224,7 +227,7 @@ def validate(model, feature_model, dataloader, criterion, CFG):
       loss = criterion(out, trg)
       losses.append(loss.cpu())
 
-      acc += accuracy(out.round().reshape(-1).detach().cpu(), trg)
+      acc += accuracy(out.round().reshape(-1).detach().cpu(),trg.reshape(-1).detach().cpu())
       end = time.time()
       #if i % CFG.print_freq == 0:
        # print(f"Time elapsed: {(end-start)/60:.4f} min\nAvg loss: {np.mean(losses)}")
@@ -237,6 +240,7 @@ def fairness_2(joint_model, feature_model, dataloader, CFG):
   joint_model.eval()
   feature_model.eval()
   predictions = []
+  df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
   
   with torch.no_grad():
     for i, (ipt, trg) in enumerate(dataloader):
@@ -244,9 +248,10 @@ def fairness_2(joint_model, feature_model, dataloader, CFG):
       trg = trg.to(CFG.device)
       
       #np.where(model(ipt).detach().cpu().numpy() <= 0.5, 1, 0)
-      predictions.append((joint_model(feature_model(ipt)).round()).reshape(-1).detach().cpu().numpy())
+      output = joint_model(feature_model(ipt))
+      predictions.append((output.round()).reshape(-1).detach().cpu().numpy())
+      a = 1
    
-  df = dataloader_to_dataframe(dataloader, dataloader.dataset.dataset.columns)
 
   test_fairness(df, predictions,save_path = "results/fairness_mitigation.json", fairness_test_group='V4_area_origin')
 
@@ -264,5 +269,5 @@ def accuracy(pred, trg):
 #print(len(train1.dataset))
 #print(len(train2.dataset)) 
 
-if __name__ == 'main':
+if __name__ == '__main__':
   main()
